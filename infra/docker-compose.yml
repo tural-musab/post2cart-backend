@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # n8n workflow automation platform
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: post2cart-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Europe/Istanbul
+      - N8N_DIAGNOSTICS_ENABLED=false
+      # Security & Execution limits
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  # MinIO - S3 compatible storage for FFmpeg outputs and Product Media
+  minio:
+    image: minio/minio:latest
+    container_name: post2cart-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # NestJS Backend API
+  backend:
+    build:
+      context: ./post2cart-backend
+      dockerfile: Dockerfile
+      # Using a local dockerfile that will be created or just fall back to node image for dev if Dockerfile isn't there yet
+    image: node:20-alpine
+    container_name: post2cart-backend
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=password123
+    volumes:
+      - ./post2cart-backend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run start:dev"
+    depends_on:
+      - minio
+
+  # Next.js Frontend App
+  frontend:
+    image: node:20-alpine
+    container_name: post2cart-frontend
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    volumes:
+      - ./post2cart-frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  n8n_data:
+  minio_data:

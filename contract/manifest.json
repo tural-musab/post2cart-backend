@@ -1,0 +1,66 @@
+{
+  "version": "1.0.0",
+  "description": "Post2Cart Single Source of Truth API Manifest",
+  "services": {
+    "auth": {
+      "baseUrl": "/api/v1/auth",
+      "endpoints": {
+        "login": {
+          "method": "POST",
+          "path": "/login",
+          "requestBody": {
+            "email": "string",
+            "password": "string"
+          },
+          "responses": {
+            "200": {
+              "accessToken": "string",
+              "user": {
+                "id": "string",
+                "email": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "webhooks": {
+      "baseUrl": "/api/v1/webhooks",
+      "endpoints": {
+        "socialPost": {
+          "method": "POST",
+          "path": "/social-posts",
+          "description": "Endpoint for n8n to send fetched social posts. Protected by Tenant context.",
+          "requestBody": {
+            "tenant_id": "string",
+            "platform": "string",
+            "platform_post_id": "string",
+            "content": "object"
+          },
+          "responses": {
+            "201": {
+              "id": "string",
+              "status": "success"
+            }
+          }
+        },
+        "ffmpegJob": {
+          "method": "POST",
+          "path": "/ffmpeg-jobs",
+          "description": "Endpoint for n8n to send a video url for processing. Responds with 202 immediately.",
+          "requestBody": {
+            "tenant_id": "string",
+            "media_url": "string",
+            "callback_url": "string"
+          },
+          "responses": {
+            "202": {
+              "job_id": "string",
+              "status": "accepted"
+            }
+          }
+        }
+      }
+    }
+  }
+}
