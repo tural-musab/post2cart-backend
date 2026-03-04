@@ -1,95 +1,641 @@
 {
-    "name": "Sub-Workflow: Instagram Polling",
-    "nodes": [
-        {
-            "parameters": {},
-            "id": "execute-workflow-trigger",
-            "name": "Execute Workflow Trigger",
-            "type": "n8n-nodes-base.executeWorkflowTrigger",
-            "typeVersion": 1,
-            "position": [
-                240,
-                300
-            ]
-        },
-        {
-            "parameters": {
-                "method": "GET",
-                "url": "=https://graph.instagram.com/v19.0/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,timestamp&after={{ $json.last_cursor_id }}&access_token={{ $json.decrypted_access_token }}",
-                "options": {}
-            },
-            "id": "http-instagram-api",
-            "name": "Poll Instagram Posts",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.1,
-            "position": [
-                460,
-                300
-            ],
-            "retryOnFail": true,
-            "maxTries": 3,
-            "waitBetweenTries": 5000
-        },
-        {
-            "parameters": {
-                "method": "POST",
-                "url": "http://post2cart-backend:3100/api/v1/webhooks/social-posts",
-                "sendBody": true,
-                "bodyParameters": {
-                    "parameters": [
-                        {
-                            "name": "tenant_id",
-                            "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
-                        },
-                        {
-                            "name": "platform",
-                            "value": "instagram"
-                        },
-                        {
-                            "name": "platform_post_id",
-                            "value": "={{ $json.id }}"
-                        },
-                        {
-                            "name": "content",
-                            "value": "={{ $json }}"
-                        }
-                    ]
-                },
-                "options": {}
-            },
-            "id": "http-post-to-backend",
-            "name": "Send Posts To Backend",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.1,
-            "position": [
-                680,
-                300
-            ]
-        }
-    ],
-    "connections": {
-        "Execute Workflow Trigger": {
-            "main": [
-                [
-                    {
-                        "node": "Poll Instagram Posts",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Poll Instagram Posts": {
-            "main": [
-                [
-                    {
-                        "node": "Send Posts To Backend",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        }
+  "name": "Sub-Workflow: Instagram Polling",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "execute-workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        120,
+        380
+      ]
     },
-    "settings": {}
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.instagram.com/v20.0/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,timestamp&after={{ $json.last_cursor_id || '' }}&access_token={{ $json.decrypted_access_token }}",
+        "options": {}
+      },
+      "id": "poll-instagram-posts",
+      "name": "Poll Instagram Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        340,
+        380
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "operation": "splitOut",
+        "fieldToSplitOut": "data"
+      },
+      "id": "split-data-to-items",
+      "name": "Split data[] to items",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3.1,
+      "position": [
+        560,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/api/v1/webhooks/social-posts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "social_account_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.social_account_id }}"
+            },
+            {
+              "name": "platform",
+              "value": "instagram"
+            },
+            {
+              "name": "platform_post_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-post-to-backend",
+      "name": "POST /webhooks/social-posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        800,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.content.media_type || $json.media_type }}",
+              "operation": "equal",
+              "value2": "VIDEO"
+            }
+          ]
+        }
+      },
+      "id": "if-video",
+      "name": "IF media_type == VIDEO",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/api/v1/media/process-video",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "platform_post_id",
+              "value": "={{ $json.platform_post_id }}"
+            },
+            {
+              "name": "media_url",
+              "value": "={{ $json.content.media_url }}"
+            },
+            {
+              "name": "n8n_callback_url",
+              "value": "={{ $execution.resumeUrl }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "process-video",
+      "name": "POST /media/process-video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1280,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook"
+      },
+      "id": "wait-for-callback",
+      "name": "Wait for callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1520,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "source_post_id",
+              "value": "={{ $('POST /webhooks/social-posts').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "name": "media_urls",
+              "value": "={{ $json.frameUrls || [] }}",
+              "type": "array"
+            },
+            {
+              "name": "video_url",
+              "value": "={{ $json.videoUrl || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "platform_post_id",
+              "value": "={{ $('POST /webhooks/social-posts').item.json.platform_post_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "normalize-video-output",
+      "name": "Normalize video callback",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "source_post_id",
+              "value": "={{ $('POST /webhooks/social-posts').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "name": "media_urls",
+              "value": "={{ [ $json.content.media_url ] }}",
+              "type": "array"
+            },
+            {
+              "name": "platform_post_id",
+              "value": "={{ $('POST /webhooks/social-posts').item.json.platform_post_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "normalize-image-output",
+      "name": "Normalize image media",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1280,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition"
+      },
+      "id": "merge-media",
+      "name": "Merge media branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2000,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.OPENAI_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"input\": [{\n    \"role\": \"user\",\n    \"content\": [{\n      \"type\": \"text\",\n      \"text\": \"Analyze this social post and return a product draft JSON.\"\n    }, {\n      \"type\": \"text\",\n      \"text\": \"Post payload: {{$json}}\"\n    }]\n  }],\n  \"response_format\": {\n    \"type\": \"json_schema\",\n    \"json_schema\": {\n      \"name\": \"post2cart_product_draft\",\n      \"schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"title\": { \"type\": \"string\" },\n          \"price\": { \"type\": \"number\" },\n          \"ai_metadata\": { \"type\": \"object\" }\n        },\n        \"required\": [\"title\", \"price\", \"ai_metadata\"],\n        \"additionalProperties\": false\n      }\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "openai-analyze",
+      "name": "OpenAI Analyze (gpt-4o)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2240,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "title",
+              "value": "={{ $json.output[0].content[0].json.title }}",
+              "type": "string"
+            },
+            {
+              "name": "price",
+              "value": "={{ $json.output[0].content[0].json.price }}",
+              "type": "number"
+            },
+            {
+              "name": "ai_metadata",
+              "value": "={{ $json.output[0].content[0].json.ai_metadata }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {
+          "includeOtherFields": true
+        }
+      },
+      "id": "parse-ai-json",
+      "name": "Parse AI JSON",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2480,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/api/v1/products/draft",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "source_post_id",
+              "value": "={{ $json.source_post_id }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "price",
+              "value": "={{ $json.price }}"
+            },
+            {
+              "name": "ai_metadata",
+              "value": "={{ $json.ai_metadata }}"
+            },
+            {
+              "name": "media_urls",
+              "value": "={{ $json.media_urls }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-draft-product",
+      "name": "POST /products/draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2720,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/sync-state/update-cursor",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "sync_state_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.sync_state_id }}"
+            },
+            {
+              "name": "last_cursor_id",
+              "value": "={{ $json.platform_post_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-cursor",
+      "name": "POST /sync-state/update-cursor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2960,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/api/v1/webhooks/failed-items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "workflow_name",
+              "value": "sub_workflow_instagram"
+            },
+            {
+              "name": "node_name",
+              "value": "={{ $json.node?.name || 'unknown' }}"
+            },
+            {
+              "name": "error_reason",
+              "value": "={{ $json.error?.message || 'workflow_failed' }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-failed-item",
+      "name": "POST /webhooks/failed-items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1760,
+        620
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Poll Instagram Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Instagram Posts": {
+      "main": [
+        [
+          {
+            "node": "Split data[] to items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split data[] to items": {
+      "main": [
+        [
+          {
+            "node": "POST /webhooks/social-posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /webhooks/social-posts": {
+      "main": [
+        [
+          {
+            "node": "IF media_type == VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF media_type == VIDEO": {
+      "main": [
+        [
+          {
+            "node": "POST /media/process-video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize image media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /media/process-video": {
+      "main": [
+        [
+          {
+            "node": "Wait for callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for callback": {
+      "main": [
+        [
+          {
+            "node": "Normalize video callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "POST /webhooks/failed-items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize video callback": {
+      "main": [
+        [
+          {
+            "node": "Merge media branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize image media": {
+      "main": [
+        [
+          {
+            "node": "Merge media branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge media branches": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Analyze (gpt-4o)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Analyze (gpt-4o)": {
+      "main": [
+        [
+          {
+            "node": "Parse AI JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "POST /webhooks/failed-items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI JSON": {
+      "main": [
+        [
+          {
+            "node": "POST /products/draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /products/draft": {
+      "main": [
+        [
+          {
+            "node": "POST /sync-state/update-cursor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "POST /webhooks/failed-items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
 }

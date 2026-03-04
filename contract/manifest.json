@@ -1,24 +1,40 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Post2Cart Single Source of Truth API Manifest",
   "services": {
-    "auth": {
-      "baseUrl": "/api/v1/auth",
+    "syncState": {
+      "baseUrl": "/n8n/sync-state",
       "endpoints": {
-        "login": {
+        "active": {
+          "method": "GET",
+          "path": "/active",
+          "description": "n8n master workflow fetches active sync states.",
+          "responses": {
+            "200": {
+              "sync_state_id": "string",
+              "tenant_id": "string",
+              "social_account_id": "string",
+              "platform": "string",
+              "platform_account_id": "string",
+              "last_cursor_id": "string|null",
+              "decrypted_access_token": "string"
+            }
+          }
+        },
+        "updateCursor": {
           "method": "POST",
-          "path": "/login",
+          "path": "/update-cursor",
           "requestBody": {
-            "email": "string",
-            "password": "string"
+            "sync_state_id": "string",
+            "last_cursor_id": "string"
           },
           "responses": {
             "200": {
-              "accessToken": "string",
-              "user": {
-                "id": "string",
-                "email": "string"
-              }
+              "status": "updated",
+              "sync_state_id": "string",
+              "last_cursor_id": "string",
+              "last_synced_at": "string",
+              "updated_at": "string"
             }
           }
         }
@@ -30,33 +46,105 @@
         "socialPost": {
           "method": "POST",
           "path": "/social-posts",
-          "description": "Endpoint for n8n to send fetched social posts. Protected by Tenant context.",
+          "description": "n8n pushes fetched social posts.",
           "requestBody": {
             "tenant_id": "string",
+            "social_account_id": "string|null",
             "platform": "string",
             "platform_post_id": "string",
             "content": "object"
           },
           "responses": {
-            "201": {
-              "id": "string",
-              "status": "success"
+            "200": {
+              "status": "inserted|duplicate",
+              "id": "string"
             }
           }
         },
-        "ffmpegJob": {
+        "failedItems": {
           "method": "POST",
-          "path": "/ffmpeg-jobs",
-          "description": "Endpoint for n8n to send a video url for processing. Responds with 202 immediately.",
+          "path": "/failed-items",
+          "description": "n8n logs failed workflow items.",
           "requestBody": {
             "tenant_id": "string",
+            "workflow_name": "string",
+            "node_name": "string|null",
+            "payload": "object",
+            "error_reason": "string",
+            "retry_count": "number"
+          },
+          "responses": {
+            "200": {
+              "status": "logged",
+              "id": "string"
+            }
+          }
+        }
+      }
+    },
+    "media": {
+      "baseUrl": "/api/v1/media",
+      "endpoints": {
+        "processVideo": {
+          "method": "POST",
+          "path": "/process-video",
+          "description": "Asynchronous video processing with n8n callback.",
+          "requestBody": {
+            "tenant_id": "string",
+            "platform_post_id": "string",
             "media_url": "string",
-            "callback_url": "string"
+            "n8n_callback_url": "string",
+            "payload": "object"
           },
           "responses": {
             "202": {
-              "job_id": "string",
-              "status": "accepted"
+              "status": "accepted",
+              "platform_post_id": "string"
+            }
+          }
+        }
+      }
+    },
+    "products": {
+      "baseUrl": "/api/v1/products",
+      "endpoints": {
+        "draft": {
+          "method": "POST",
+          "path": "/draft",
+          "description": "Create AI-generated draft product.",
+          "requestBody": {
+            "tenant_id": "string",
+            "source_post_id": "string",
+            "title": "string",
+            "price": "number",
+            "ai_metadata": "object",
+            "media_urls": "string[]"
+          },
+          "responses": {
+            "200": {
+              "status": "success",
+              "product_id": "string"
+            }
+          }
+        }
+      }
+    },
+    "social": {
+      "baseUrl": "/api/v1/social/instagram",
+      "endpoints": {
+        "commentProductLink": {
+          "method": "POST",
+          "path": "/comment-product-link",
+          "description": "Posts product link comment to the Instagram source media.",
+          "requestBody": {
+            "tenant_id": "string",
+            "product_id": "string",
+            "comment_template": "string"
+          },
+          "responses": {
+            "200": {
+              "status": "success",
+              "graph_comment_id": "string|null"
             }
           }
         }
