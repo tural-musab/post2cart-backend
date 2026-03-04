@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  post2cart-minio:
+    image: minio/minio:latest
+    container_name: post2cart-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    ports:
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
+    volumes:
+      - post2cart_minio_data:/data
+    networks:
+      - post2cart-network
+
+  post2cart-backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: post2cart-backend
+    restart: unless-stopped
+    depends_on:
+      - post2cart-minio
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_USE_SSL=${MINIO_USE_SSL}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+      - MINIO_PUBLIC_BASE_URL=${MINIO_PUBLIC_BASE_URL}
+    ports:
+      - "127.0.0.1:3010:3100"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:3100/', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      post2cart-network:
+      n8n_n8n-network:
+        aliases:
+          - post2cart-backend
+
+networks:
+  post2cart-network:
+    driver: bridge
+  n8n_n8n-network:
+    external: true
+
+volumes:
+  post2cart_minio_data:
+    driver: local
+

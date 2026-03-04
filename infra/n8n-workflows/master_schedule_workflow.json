@@ -24,7 +24,7 @@
         {
             "parameters": {
                 "method": "GET",
-                "url": "http://post2cart-backend:3000/n8n/sync-state/active",
+                "url": "http://post2cart-backend:3100/n8n/sync-state/active",
                 "sendHeaders": true,
                 "headerParameters": {
                     "parameters": [

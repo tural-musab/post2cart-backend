@@ -8,9 +8,13 @@ import { N8nIntegrationModule } from './n8n-integration/n8n-integration.module';
 import { MediaModule } from './media/media.module';
 import { ProductsModule } from './products/products.module';
 import { DatabaseModule } from './database/database.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     CryptoModule,
     TenantsModule,
     CronModule,

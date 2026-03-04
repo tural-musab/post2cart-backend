@@ -64,12 +64,23 @@ export class MinioService {
                 'Content-Type': contentType,
             });
 
-            // Format URL based on config
+            const objectPath = `${this.bucketName}/${destinationObject}`;
+
+            // Prefer externally reachable media domain when provided.
+            const publicBaseUrl = this.configService.get<string>('MINIO_PUBLIC_BASE_URL');
+            if (publicBaseUrl) {
+                const normalizedBase = publicBaseUrl.replace(/\/+$/, '');
+                const fileUrl = `${normalizedBase}/${objectPath}`;
+                this.logger.log(`Successfully uploaded to MinIO: ${fileUrl}`);
+                return fileUrl;
+            }
+
+            // Fallback URL based on internal MinIO host/port config.
             const endPoint = this.configService.get<string>('MINIO_ENDPOINT') || 'localhost';
             const port = this.configService.get<string>('MINIO_PORT') || '9000';
             const protocol = this.configService.get<string>('MINIO_USE_SSL') === 'true' ? 'https' : 'http';
 
-            const fileUrl = `${protocol}://${endPoint}:${port}/${this.bucketName}/${destinationObject}`;
+            const fileUrl = `${protocol}://${endPoint}:${port}/${objectPath}`;
             this.logger.log(`Successfully uploaded to MinIO: ${fileUrl}`);
             return fileUrl;
         } catch (error) {

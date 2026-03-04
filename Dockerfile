@@ -19,7 +19,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --only=production
+RUN apk add --no-cache ffmpeg \
+    && npm install --omit=dev
 
 COPY --from=development /app/dist ./dist
 

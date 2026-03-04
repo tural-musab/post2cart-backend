@@ -18,14 +18,18 @@ export class DatabaseService implements OnModuleInit {
             return;
         }
 
-        // This creates a Service Role client but we MUST enforce RLS manually or via claims later.
-        // Given the architecture, all insert checks MUST validate the TenantID first.
-        this.supabaseClient = createClient(supabaseUrl, supabaseKey, {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false,
-            },
-        });
+        try {
+            // This creates a Service Role client but we MUST enforce RLS manually or via claims later.
+            // Given the architecture, all insert checks MUST validate the TenantID first.
+            this.supabaseClient = createClient(supabaseUrl, supabaseKey, {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false,
+                },
+            });
+        } catch (error: any) {
+            this.logger.warn(`Supabase client initialization skipped: ${error.message}`);
+        }
     }
 
     getClient(): SupabaseClient {

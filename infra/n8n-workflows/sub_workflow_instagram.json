@@ -33,7 +33,7 @@
         {
             "parameters": {
                 "method": "POST",
-                "url": "http://post2cart-backend:3000/api/v1/webhooks/social-posts",
+                "url": "http://post2cart-backend:3100/api/v1/webhooks/social-posts",
                 "sendBody": true,
                 "bodyParameters": {
                     "parameters": [
