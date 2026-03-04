@@ -5,40 +5,33 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - devserver
+      - post2cart
     steps:
-      - name: Deploy via DevServer jump host
+      - name: Deploy from self-hosted DevServer runner
         env:
-          DEVSERVER_HOST: ${{ secrets.DEVSERVER_HOST }}
-          DEVSERVER_USER: ${{ secrets.DEVSERVER_USER }}
-          DEVSERVER_SSH_KEY: ${{ secrets.DEVSERVER_SSH_KEY }}
           PROD_HOST_PRIVATE: ${{ secrets.PROD_HOST_PRIVATE }}
         run: |
           set -euo pipefail
 
-          if [ -z "${DEVSERVER_HOST:-}" ] || [ -z "${DEVSERVER_USER:-}" ] || [ -z "${DEVSERVER_SSH_KEY:-}" ]; then
-            echo "Missing required secrets: DEVSERVER_HOST, DEVSERVER_USER, DEVSERVER_SSH_KEY"
-            exit 1
-          fi
-
           PROD_HOST_PRIVATE="${PROD_HOST_PRIVATE:-10.20.0.3}"
 
-          mkdir -p ~/.ssh
-          printf '%s\n' "$DEVSERVER_SSH_KEY" > ~/.ssh/devserver_key
-          chmod 600 ~/.ssh/devserver_key
-
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/devserver_key "${DEVSERVER_USER}@${DEVSERVER_HOST}" "
+          ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no "root@${PROD_HOST_PRIVATE}" '
             set -euo pipefail
-            ssh -o StrictHostKeyChecking=no root@${PROD_HOST_PRIVATE} '
-              set -euo pipefail
-              cd /opt/projects/post2cart-backend
-              git fetch origin main
-              git checkout main
-              git pull --ff-only origin main
-              docker compose -f infra/docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans
-              docker compose -f infra/docker-compose.prod.yml --env-file .env.production ps
-            '
-          "
-
+            cd /opt/projects/post2cart-backend
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            docker compose -f infra/docker-compose.prod.yml --env-file .env.production up -d --build --remove-orphans
+            docker compose -f infra/docker-compose.prod.yml --env-file .env.production ps
+          '
