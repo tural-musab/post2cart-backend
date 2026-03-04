@@ -117,6 +117,8 @@ Beklenenler:
 n8n environment içinde:
 - `N8N_INTERNAL_TOKEN=<same token>`
 - `OPENAI_API_KEY=<required>`
+- `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` (`{{$env.*}}` expression'ları için)
+- `N8N_PROXY_HOPS=1` (Cloudflare/Nginx reverse proxy arkasında doğru IP handling)
 
 Workflow import dosyaları:
 - `infra/n8n-workflows/master_schedule_workflow.json`

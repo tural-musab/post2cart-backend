@@ -122,7 +122,5 @@
       ]
     }
   },
-  "settings": {
-    "errorWorkflow": "error-trigger-dlq-uuid-here"
-  }
+  "settings": {}
 }
