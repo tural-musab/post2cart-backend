@@ -1,0 +1,128 @@
+{
+    "name": "Master Schedule Workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "minutes",
+                            "minutesInterval": 15
+                        }
+                    ]
+                }
+            },
+            "id": "schedule-trigger-uuid",
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "http://post2cart-backend:3000/n8n/sync-state/active",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer internal_service_token"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "http-fetch-tenants",
+            "name": "Fetch Active Tenants",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "runOnceForEachItem",
+                "options": {
+                    "batchSize": 1,
+                    "batchInterval": 1000
+                }
+            },
+            "id": "split-in-batches",
+            "name": "Split In Batches (Rate Limit)",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 2,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "workflowId": "sub-workflow-uuid-here"
+            },
+            "id": "execute-sub-workflow",
+            "name": "Call Platform Sub-Workflow",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                900,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch Active Tenants",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fetch Active Tenants": {
+            "main": [
+                [
+                    {
+                        "node": "Split In Batches (Rate Limit)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split In Batches (Rate Limit)": {
+            "main": [
+                [
+                    {
+                        "node": "Call Platform Sub-Workflow",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Platform Sub-Workflow": {
+            "main": [
+                [
+                    {
+                        "node": "Split In Batches (Rate Limit)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "errorWorkflow": "error-trigger-dlq-uuid-here"
+    }
+}

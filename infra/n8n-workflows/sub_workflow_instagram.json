@@ -1,0 +1,95 @@
+{
+    "name": "Sub-Workflow: Instagram Polling",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "execute-workflow-trigger",
+            "name": "Execute Workflow Trigger",
+            "type": "n8n-nodes-base.executeWorkflowTrigger",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "=https://graph.instagram.com/v19.0/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,timestamp&after={{ $json.last_cursor_id }}&access_token={{ $json.decrypted_access_token }}",
+                "options": {}
+            },
+            "id": "http-instagram-api",
+            "name": "Poll Instagram Posts",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                460,
+                300
+            ],
+            "retryOnFail": true,
+            "maxTries": 3,
+            "waitBetweenTries": 5000
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://post2cart-backend:3000/api/v1/webhooks/social-posts",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "tenant_id",
+                            "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+                        },
+                        {
+                            "name": "platform",
+                            "value": "instagram"
+                        },
+                        {
+                            "name": "platform_post_id",
+                            "value": "={{ $json.id }}"
+                        },
+                        {
+                            "name": "content",
+                            "value": "={{ $json }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "http-post-to-backend",
+            "name": "Send Posts To Backend",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                680,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Execute Workflow Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Poll Instagram Posts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Poll Instagram Posts": {
+            "main": [
+                [
+                    {
+                        "node": "Send Posts To Backend",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {}
+}
