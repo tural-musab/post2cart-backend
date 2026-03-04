@@ -6,9 +6,19 @@ import { TenantsModule } from './tenants/tenants.module';
 import { CronModule } from './cron/cron.module';
 import { N8nIntegrationModule } from './n8n-integration/n8n-integration.module';
 import { MediaModule } from './media/media.module';
+import { ProductsModule } from './products/products.module';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
-  imports: [CryptoModule, TenantsModule, CronModule, N8nIntegrationModule, MediaModule],
+  imports: [
+    CryptoModule,
+    TenantsModule,
+    CronModule,
+    N8nIntegrationModule,
+    MediaModule,
+    ProductsModule,
+    DatabaseModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
