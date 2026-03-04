@@ -1,5 +1,6 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { PublishProductDto } from './dto/publish-product.dto';
 
 export interface CreateDraftProductParams {
     tenantId: string;
@@ -99,5 +100,90 @@ export class ProductsService {
         if (error) {
             this.logger.error(`Audit log failed: ${error.message}`);
         }
+    }
+
+    async getProductsByTenant(tenantId: string) {
+        const supabase = this.db.getClient();
+
+        const { data: products, error } = await supabase
+            .from('products')
+            .select(`
+            *,
+            product_media (*)
+        `)
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            this.logger.error(`Failed to fetch products for tenant ${tenantId}: ${error.message}`);
+            throw new InternalServerErrorException('Failed to fetch products');
+        }
+
+        return products;
+    }
+
+    async publishProduct(productId: string, dto: PublishProductDto) {
+        const supabase = this.db.getClient();
+
+        // Verify ownership and current status
+        const { data: existing, error: fetchError } = await supabase
+            .from('products')
+            .select('id, status, title')
+            .eq('id', productId)
+            .eq('tenant_id', dto.tenantId)
+            .single();
+
+        if (fetchError || !existing) {
+            throw new NotFoundException('Product not found or access denied');
+        }
+
+        if (existing.status === 'published') {
+            throw new BadRequestException('Product is already published');
+        }
+
+        const { data: updated, error: updateError } = await supabase
+            .from('products')
+            .update({
+                price: dto.price,
+                status: 'published',
+                published_at: new Date().toISOString()
+            })
+            .eq('id', productId)
+            .select('id, title')
+            .single();
+
+        if (updateError) {
+            throw new InternalServerErrorException(`Failed to publish product: ${updateError.message}`);
+        }
+
+        // Audit Log for status change
+        await this.logAuditEvent(dto.tenantId, 'product_status_change', {
+            product_id: productId,
+            title: updated.title,
+            new_status: 'published',
+            new_price: dto.price
+        });
+
+        return updated;
+    }
+
+    async getPublicProductBySlug(slug: string) {
+        const supabase = this.db.getClient();
+
+        const { data: product, error } = await supabase
+            .from('products')
+            .select(`
+            *,
+            product_media (*)
+        `)
+            .eq('slug', slug)
+            .eq('status', 'published')
+            .single();
+
+        if (error || !product) {
+            throw new NotFoundException('Product not found or not published');
+        }
+
+        return product;
     }
 }
