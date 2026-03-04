@@ -115,6 +115,9 @@ export class ProductsService {
             .order('created_at', { ascending: false });
 
         if (error) {
+            if (error.code === '22P02' || error.message?.toLowerCase().includes('invalid input syntax for type uuid')) {
+                throw new BadRequestException('Tenant ID must be a valid UUID');
+            }
             this.logger.error(`Failed to fetch products for tenant ${tenantId}: ${error.message}`);
             throw new InternalServerErrorException('Failed to fetch products');
         }
