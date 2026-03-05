@@ -84,7 +84,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $('Execute Workflow Trigger').item.json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&after={{ $('Execute Workflow Trigger').item.json.last_cursor_id || '' }}&access_token={{ $('Execute Workflow Trigger').item.json.decrypted_access_token }}",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $('Execute Workflow Trigger').item.json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&access_token={{ $('Execute Workflow Trigger').item.json.decrypted_access_token }}",
         "options": {}
       },
       "id": "poll-instagram-posts",
@@ -695,6 +695,27 @@
         2500,
         620
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "inserted"
+            }
+          ]
+        }
+      },
+      "id": "if-social-post-inserted",
+      "name": "IF social post inserted",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        380
+      ]
     }
   ],
   "connections": {
@@ -775,7 +796,7 @@
       "main": [
         [
           {
-            "node": "IF media_type == VIDEO",
+            "node": "IF social post inserted",
             "type": "main",
             "index": 0
           }
@@ -914,6 +935,18 @@
         [
           {
             "node": "POST /automation/executions/event (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF social post inserted": {
+      "main": [
+        [],
+        [
+          {
+            "node": "IF media_type == VIDEO",
             "type": "main",
             "index": 0
           }
