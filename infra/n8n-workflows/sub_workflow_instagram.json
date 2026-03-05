@@ -32,7 +32,7 @@
     },
     {
       "parameters": {
-        "operation": "splitOut",
+        "operation": "splitOutItems",
         "fieldToSplitOut": "data"
       },
       "id": "split-data-to-items",
