@@ -66,7 +66,7 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ !!$json.retry_context }}",
+              "value1": "={{ !!$('Execute Workflow Trigger').item.json.retry_context }}",
               "value2": true
             }
           ]
@@ -84,7 +84,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&after={{ $json.last_cursor_id || '' }}&access_token={{ $json.decrypted_access_token }}",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $('Execute Workflow Trigger').item.json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&after={{ $('Execute Workflow Trigger').item.json.last_cursor_id || '' }}&access_token={{ $('Execute Workflow Trigger').item.json.decrypted_access_token }}",
         "options": {}
       },
       "id": "poll-instagram-posts",
@@ -119,37 +119,37 @@
           "assignments": [
             {
               "name": "id",
-              "value": "={{ $json.retry_context.platform_post_id || $json.retry_context.content?.id || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.platform_post_id || $('Execute Workflow Trigger').item.json.retry_context?.content?.id || '' }}",
               "type": "string"
             },
             {
               "name": "caption",
-              "value": "={{ $json.retry_context.content?.caption || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.content?.caption || '' }}",
               "type": "string"
             },
             {
               "name": "media_type",
-              "value": "={{ $json.retry_context.media_type || $json.retry_context.content?.media_type || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.media_type || $('Execute Workflow Trigger').item.json.retry_context?.content?.media_type || '' }}",
               "type": "string"
             },
             {
               "name": "media_url",
-              "value": "={{ $json.retry_context.content?.media_url || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.content?.media_url || '' }}",
               "type": "string"
             },
             {
               "name": "thumbnail_url",
-              "value": "={{ $json.retry_context.content?.thumbnail_url || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.content?.thumbnail_url || '' }}",
               "type": "string"
             },
             {
               "name": "timestamp",
-              "value": "={{ $json.retry_context.content?.timestamp || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.content?.timestamp || '' }}",
               "type": "string"
             },
             {
               "name": "permalink",
-              "value": "={{ $json.retry_context.content?.permalink || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.content?.permalink || '' }}",
               "type": "string"
             }
           ]
@@ -718,14 +718,14 @@
       "main": [
         [
           {
-            "node": "Build Retry Item",
+            "node": "Poll Instagram Posts",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Poll Instagram Posts",
+            "node": "Build Retry Item",
             "type": "main",
             "index": 0
           }
