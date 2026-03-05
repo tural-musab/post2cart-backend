@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.3.0",
   "description": "Post2Cart Single Source of Truth API Manifest",
   "services": {
     "syncState": {
@@ -147,6 +147,90 @@
               "graph_comment_id": "string|null"
             }
           }
+        }
+      }
+    },
+    "appClient": {
+      "baseUrl": "/api/v1/app",
+      "endpoints": {
+        "bootstrap": {
+          "method": "GET",
+          "path": "/bootstrap",
+          "description": "Returns user + tenant + onboarding readiness snapshot for frontend app shell."
+        },
+        "createTenant": {
+          "method": "POST",
+          "path": "/tenants",
+          "requestBody": {
+            "name": "string"
+          },
+          "responses": {
+            "200": {
+              "status": "success",
+              "tenant": {
+                "id": "string",
+                "name": "string"
+              }
+            }
+          }
+        },
+        "onboardingStatus": {
+          "method": "GET",
+          "path": "/onboarding/status",
+          "responses": {
+            "200": {
+              "has_tenant": "boolean",
+              "has_social_account": "boolean",
+              "has_sync_state": "boolean",
+              "token_valid": "boolean",
+              "automation_ready": "boolean"
+            }
+          }
+        },
+        "manualInstagramConnect": {
+          "method": "POST",
+          "path": "/social-accounts/instagram/manual",
+          "requestBody": {
+            "platform_account_id": "string",
+            "platform_username": "string|null",
+            "access_token": "string",
+            "token_expires_at": "string|null"
+          }
+        },
+        "products": {
+          "method": "GET",
+          "path": "/products"
+        },
+        "publishProduct": {
+          "method": "PATCH",
+          "path": "/products/:id/publish",
+          "requestBody": {
+            "price": "number"
+          }
+        },
+        "oauthStart": {
+          "method": "GET",
+          "path": "/social/instagram/oauth/start",
+          "description": "Phase-2 OAuth authorization URL generation endpoint."
+        },
+        "oauthCallback": {
+          "method": "GET",
+          "path": "/social/instagram/oauth/callback",
+          "description": "Phase-2 OAuth callback endpoint with real code exchange and onboarding redirects."
+        },
+        "oauthPending": {
+          "method": "GET",
+          "path": "/social/instagram/oauth/pending/:sessionId",
+          "description": "Returns candidate Instagram business accounts for pending selection sessions."
+        },
+        "oauthFinalize": {
+          "method": "POST",
+          "path": "/social/instagram/oauth/finalize",
+          "requestBody": {
+            "session_id": "string",
+            "platform_account_id": "string"
+          },
+          "description": "Finalizes selected Instagram account and persists social_accounts + sync_state."
         }
       }
     }

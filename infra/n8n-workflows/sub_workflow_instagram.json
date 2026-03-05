@@ -15,7 +15,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://graph.instagram.com/v20.0/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,timestamp&after={{ $json.last_cursor_id || '' }}&access_token={{ $json.decrypted_access_token }}",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&after={{ $json.last_cursor_id || '' }}&access_token={{ $json.decrypted_access_token }}",
         "options": {}
       },
       "id": "poll-instagram-posts",

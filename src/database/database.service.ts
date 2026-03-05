@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    InternalServerErrorException,
+    Logger,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
@@ -33,6 +38,20 @@ export class DatabaseService implements OnModuleInit {
     }
 
     getClient(): SupabaseClient {
+        if (!this.supabaseClient) {
+            throw new InternalServerErrorException(
+                'Supabase client is not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+            );
+        }
         return this.supabaseClient;
+    }
+
+    async getUserFromAccessToken(accessToken: string) {
+        const supabase = this.getClient();
+        const { data, error } = await supabase.auth.getUser(accessToken);
+        if (error || !data.user) {
+            return null;
+        }
+        return data.user;
     }
 }

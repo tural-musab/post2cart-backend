@@ -9,6 +9,8 @@ import { MediaModule } from './media/media.module';
 import { ProductsModule } from './products/products.module';
 import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from './auth/auth.module';
+import { AppClientModule } from './app-client/app-client.module';
 
 @Module({
   imports: [
@@ -21,7 +23,9 @@ import { ConfigModule } from '@nestjs/config';
     N8nIntegrationModule,
     MediaModule,
     ProductsModule,
-    DatabaseModule
+    DatabaseModule,
+    AuthModule,
+    AppClientModule,
   ],
   controllers: [AppController],
   providers: [AppService],

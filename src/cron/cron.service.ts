@@ -12,6 +12,7 @@ interface SocialAccountTokenRow {
   token_expires_at: string | null;
   platform: string;
   status: string;
+  token_source: 'manual' | 'facebook_oauth' | null;
 }
 
 interface RefreshResponse {
@@ -43,7 +44,7 @@ export class CronService {
     const { data: accounts, error } = await supabase
       .from('social_accounts')
       .select(
-        'id, tenant_id, encrypted_access_token, token_expires_at, platform, status',
+        'id, tenant_id, encrypted_access_token, token_expires_at, platform, status, token_source',
       )
       .eq('status', 'active')
       .eq('platform', 'instagram');
@@ -58,6 +59,8 @@ export class CronService {
     for (const account of rows) {
       await this.refreshIfExpiring(account, thresholdTimestamp);
     }
+
+    await this.expireStaleOauthSessions();
   }
 
   private async refreshIfExpiring(
@@ -101,7 +104,10 @@ export class CronService {
     }
 
     try {
-      const refreshResult = await this.refreshInstagramToken(decryptedAccessToken);
+      const refreshResult =
+        account.token_source === 'facebook_oauth'
+          ? await this.refreshFacebookOauthToken(decryptedAccessToken)
+          : await this.refreshInstagramToken(decryptedAccessToken);
 
       const refreshedToken = refreshResult.access_token ?? decryptedAccessToken;
       const expiresInSeconds = Number(refreshResult.expires_in ?? 0);
@@ -127,11 +133,12 @@ export class CronService {
       }
 
       this.logger.log(
-        `Refreshed Instagram token for social_account=${account.id} (tenant=${account.tenant_id})`,
+        `Refreshed ${account.token_source ?? 'manual'} token for social_account=${account.id} (tenant=${account.tenant_id})`,
       );
 
       await this.logAudit(account.tenant_id, 'token_refreshed', {
         social_account_id: account.id,
+        token_source: account.token_source ?? 'manual',
         old_expires_at: expiresAt.toISOString(),
         new_expires_at: refreshedExpiresAt.toISOString(),
       });
@@ -211,6 +218,35 @@ export class CronService {
     return response.data;
   }
 
+  private async refreshFacebookOauthToken(
+    accessToken: string,
+  ): Promise<RefreshResponse> {
+    const appId = this.configService.get<string>('META_APP_ID');
+    const appSecret = this.configService.get<string>('META_APP_SECRET');
+    const graphVersion =
+      this.configService.get<string>('META_GRAPH_API_VERSION') ?? 'v20.0';
+
+    if (!appId || !appSecret) {
+      throw new Error(
+        'META_APP_ID and META_APP_SECRET are required for facebook_oauth token refresh',
+      );
+    }
+
+    const response = await axios.get<RefreshResponse>(
+      `https://graph.facebook.com/${graphVersion}/oauth/access_token`,
+      {
+        params: {
+          grant_type: 'fb_exchange_token',
+          client_id: appId,
+          client_secret: appSecret,
+          fb_exchange_token: accessToken,
+        },
+      },
+    );
+
+    return response.data;
+  }
+
   private resolveLookaheadHours(): number {
     const configured = this.configService.get<string>(
       'TOKEN_REFRESH_LOOKAHEAD_HOURS',
@@ -240,6 +276,24 @@ export class CronService {
       this.logger.error(
         `Failed to write audit log (${eventType}) tenant=${tenantId}: ${error.message}`,
       );
+    }
+  }
+
+  private async expireStaleOauthSessions() {
+    const supabase = this.databaseService.getClient();
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase
+      .from('oauth_sessions')
+      .update({
+        status: 'expired',
+        error_code: 'state_expired',
+        updated_at: nowIso,
+      })
+      .in('status', ['started', 'pending_selection'])
+      .lt('state_expires_at', nowIso);
+
+    if (error) {
+      this.logger.warn(`Failed to expire stale oauth sessions: ${error.message}`);
     }
   }
 }
