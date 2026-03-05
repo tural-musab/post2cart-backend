@@ -68,6 +68,11 @@ export class N8nWebhookService {
         tenant_id: existing.tenant_id,
         platform: existing.platform,
         platform_post_id: existing.platform_post_id,
+        content: payload.content,
+        media_type:
+          typeof payload.content?.media_type === 'string'
+            ? payload.content.media_type
+            : null,
         created_at: existing.created_at,
       };
     }
@@ -84,6 +89,11 @@ export class N8nWebhookService {
       tenant_id: data.tenant_id,
       platform: data.platform,
       platform_post_id: data.platform_post_id,
+      content: payload.content,
+      media_type:
+        typeof payload.content?.media_type === 'string'
+          ? payload.content.media_type
+          : null,
       created_at: data.created_at,
     };
   }

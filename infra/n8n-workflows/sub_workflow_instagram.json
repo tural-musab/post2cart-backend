@@ -14,6 +14,75 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/automation/executions/event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "workflow_name",
+              "value": "sub_workflow_instagram"
+            },
+            {
+              "name": "external_execution_id",
+              "value": "={{ $execution.id }}"
+            },
+            {
+              "name": "status",
+              "value": "started"
+            },
+            {
+              "name": "meta",
+              "value": "={{ { mode: $json.retry_context ? 'retry' : 'poll' } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "execution-started",
+      "name": "POST /automation/executions/event (started)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        340,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.retry_context }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-retry-mode",
+      "name": "IF Retry Mode",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        580,
+        380
+      ]
+    },
+    {
+      "parameters": {
         "method": "GET",
         "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_API_VERSION || 'v20.0' }}/{{ $json.platform_account_id }}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&after={{ $json.last_cursor_id || '' }}&access_token={{ $json.decrypted_access_token }}",
         "options": {}
@@ -23,8 +92,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        340,
-        380
+        820,
+        540
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -40,8 +109,60 @@
       "type": "n8n-nodes-base.itemLists",
       "typeVersion": 3.1,
       "position": [
-        560,
-        380
+        1060,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "id",
+              "value": "={{ $json.retry_context.platform_post_id || $json.retry_context.content?.id || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.retry_context.content?.caption || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "media_type",
+              "value": "={{ $json.retry_context.media_type || $json.retry_context.content?.media_type || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "media_url",
+              "value": "={{ $json.retry_context.content?.media_url || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "thumbnail_url",
+              "value": "={{ $json.retry_context.content?.thumbnail_url || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.retry_context.content?.timestamp || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "permalink",
+              "value": "={{ $json.retry_context.content?.permalink || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "build-retry-item",
+      "name": "Build Retry Item",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        820,
+        220
       ]
     },
     {
@@ -89,7 +210,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        800,
+        1300,
         380
       ]
     },
@@ -110,7 +231,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1040,
+        1540,
         380
       ]
     },
@@ -159,7 +280,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1280,
+        1780,
         220
       ]
     },
@@ -172,7 +293,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1520,
+        2020,
         220
       ]
     },
@@ -209,7 +330,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1760,
+        2260,
         220
       ]
     },
@@ -241,7 +362,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1280,
+        1780,
         540
       ]
     },
@@ -255,7 +376,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        2000,
+        2500,
         380
       ]
     },
@@ -286,7 +407,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2240,
+        2740,
         380
       ]
     },
@@ -320,7 +441,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2480,
+        2980,
         380
       ]
     },
@@ -373,7 +494,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2720,
+        3220,
         380
       ]
     },
@@ -410,7 +531,56 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2960,
+        3460,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/automation/executions/event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "workflow_name",
+              "value": "sub_workflow_instagram"
+            },
+            {
+              "name": "external_execution_id",
+              "value": "={{ $execution.id }}"
+            },
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "meta",
+              "value": "={{ { last_cursor_id: $json.platform_post_id || null } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "execution-success",
+      "name": "POST /automation/executions/event (success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3700,
         380
       ]
     },
@@ -448,7 +618,7 @@
             },
             {
               "name": "payload",
-              "value": "={{ $json }}"
+              "value": "={{ { original: $json, retry_context: { tenant_id: $('Execute Workflow Trigger').item.json.tenant_id, social_account_id: $('Execute Workflow Trigger').item.json.social_account_id || null, sync_state_id: $('Execute Workflow Trigger').item.json.sync_state_id || null, platform_account_id: $('Execute Workflow Trigger').item.json.platform_account_id || null, decrypted_access_token: $('Execute Workflow Trigger').item.json.decrypted_access_token || null, platform_post_id: $json.platform_post_id || $json.id || $json.content?.id || $('Execute Workflow Trigger').item.json.retry_context?.platform_post_id || '', content: $json.content || $('Execute Workflow Trigger').item.json.retry_context?.content || $json, media_type: $json.content?.media_type || $json.media_type || $('Execute Workflow Trigger').item.json.retry_context?.media_type || null, source_node: $json.node?.name || 'unknown' } } }}"
             }
           ]
         },
@@ -459,7 +629,64 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        1760,
+        2260,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/automation/executions/event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $('Execute Workflow Trigger').item.json.tenant_id }}"
+            },
+            {
+              "name": "workflow_name",
+              "value": "sub_workflow_instagram"
+            },
+            {
+              "name": "external_execution_id",
+              "value": "={{ $execution.id }}"
+            },
+            {
+              "name": "status",
+              "value": "failed"
+            },
+            {
+              "name": "node_name",
+              "value": "={{ $json.node_name || $json.node?.name || 'unknown' }}"
+            },
+            {
+              "name": "error_reason",
+              "value": "={{ $json.error_reason || $json.error?.message || 'workflow_failed' }}"
+            },
+            {
+              "name": "meta",
+              "value": "={{ { failed_item_id: $json.id || null } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "execution-failed",
+      "name": "POST /automation/executions/event (failed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2500,
         620
       ]
     }
@@ -469,7 +696,47 @@
       "main": [
         [
           {
+            "node": "POST /automation/executions/event (started)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /automation/executions/event (started)": {
+      "main": [
+        [
+          {
+            "node": "IF Retry Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Retry Mode": {
+      "main": [
+        [
+          {
+            "node": "Build Retry Item",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Poll Instagram Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Retry Item": {
+      "main": [
+        [
+          {
+            "node": "POST /webhooks/social-posts",
             "type": "main",
             "index": 0
           }
@@ -630,6 +897,28 @@
         [
           {
             "node": "POST /webhooks/failed-items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /sync-state/update-cursor": {
+      "main": [
+        [
+          {
+            "node": "POST /automation/executions/event (success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /webhooks/failed-items": {
+      "main": [
+        [
+          {
+            "node": "POST /automation/executions/event (failed)",
             "type": "main",
             "index": 0
           }

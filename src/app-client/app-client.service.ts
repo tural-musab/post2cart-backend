@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -10,6 +11,8 @@ import axios from 'axios';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { CryptoService } from '../crypto/crypto.service';
 import { DatabaseService } from '../database/database.service';
+import { AutomationFailedItemsQueryDto } from './dto/automation-failed-items-query.dto';
+import { AutomationOpsQueryDto } from './dto/automation-ops-query.dto';
 import { ConnectInstagramManualDto } from './dto/connect-instagram-manual.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { FinalizeInstagramOauthDto } from './dto/finalize-instagram-oauth.dto';
@@ -69,6 +72,55 @@ interface OAuthSessionRow {
   created_at: string;
   updated_at: string;
   consumed_at: string | null;
+}
+
+type AutomationExecutionStatus = 'started' | 'success' | 'failed';
+type RetryJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+type FailedItemStatus = 'pending' | 'resolved' | 'ignored';
+
+interface AutomationExecutionRow {
+  id: string;
+  tenant_id: string;
+  workflow_name: string;
+  external_execution_id: string;
+  status: AutomationExecutionStatus;
+  node_name: string | null;
+  error_reason: string | null;
+  meta: Record<string, unknown> | null;
+  started_at: string;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FailedItemRow {
+  id: string;
+  tenant_id: string;
+  workflow_name: string;
+  node_name: string | null;
+  payload: Record<string, unknown> | null;
+  error_reason: string;
+  retry_count: number;
+  status: FailedItemStatus;
+  created_at: string;
+  updated_at: string;
+  last_retry_at: string | null;
+  last_retry_job_id: string | null;
+}
+
+interface RetryJobRow {
+  id: string;
+  tenant_id: string;
+  failed_item_id: string;
+  status: RetryJobStatus;
+  retry_context: Record<string, unknown>;
+  attempt_number: number;
+  claimed_by: string | null;
+  error_reason: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface GraphAccessTokenResponse {
@@ -305,6 +357,321 @@ export class AppClientService {
     return {
       status: 'published',
       product: updated,
+    };
+  }
+
+  async getAutomationOps(userId: string) {
+    const tenant = await this.getPrimaryTenant(userId);
+    if (!tenant) {
+      return {
+        tenant: null,
+        summary: {
+          pending_failed_count: 0,
+          queued_retry_count: 0,
+          processing_retry_count: 0,
+          success_last_24h: 0,
+          failed_last_24h: 0,
+          last_execution: null,
+        },
+        recent_executions: [],
+        failed_items: [],
+      };
+    }
+
+    const supabase = this.databaseService.getClient();
+    const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      pendingFailedResult,
+      queuedRetryResult,
+      processingRetryResult,
+      successLast24Result,
+      failedLast24Result,
+      recentExecutionsResult,
+      recentFailedItemsResult,
+    ] = await Promise.all([
+      supabase
+        .from('failed_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'pending'),
+      supabase
+        .from('automation_retry_jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'queued'),
+      supabase
+        .from('automation_retry_jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'processing'),
+      supabase
+        .from('automation_executions')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'success')
+        .gte('created_at', sinceIso),
+      supabase
+        .from('automation_executions')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('status', 'failed')
+        .gte('created_at', sinceIso),
+      supabase
+        .from('automation_executions')
+        .select(
+          'id, tenant_id, workflow_name, external_execution_id, status, node_name, error_reason, meta, started_at, finished_at, created_at, updated_at',
+        )
+        .eq('tenant_id', tenant.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('failed_items')
+        .select(
+          'id, tenant_id, workflow_name, node_name, payload, error_reason, retry_count, status, created_at, updated_at, last_retry_at, last_retry_job_id',
+        )
+        .eq('tenant_id', tenant.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
+
+    if (
+      pendingFailedResult.error ||
+      queuedRetryResult.error ||
+      processingRetryResult.error ||
+      successLast24Result.error ||
+      failedLast24Result.error ||
+      recentExecutionsResult.error ||
+      recentFailedItemsResult.error
+    ) {
+      throw new InternalServerErrorException('Failed to load automation ops summary');
+    }
+
+    const executions = (recentExecutionsResult.data ?? []).map((row) =>
+      this.mapExecutionRow(row as AutomationExecutionRow),
+    );
+
+    const failedItems = (recentFailedItemsResult.data ?? []).map((row) =>
+      this.mapFailedItemRow(row as FailedItemRow),
+    );
+
+    return {
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+      },
+      summary: {
+        pending_failed_count: pendingFailedResult.count ?? 0,
+        queued_retry_count: queuedRetryResult.count ?? 0,
+        processing_retry_count: processingRetryResult.count ?? 0,
+        success_last_24h: successLast24Result.count ?? 0,
+        failed_last_24h: failedLast24Result.count ?? 0,
+        last_execution: executions[0] ?? null,
+      },
+      recent_executions: executions,
+      failed_items: failedItems,
+    };
+  }
+
+  async getAutomationExecutions(userId: string, query: AutomationOpsQueryDto) {
+    const tenant = await this.getPrimaryTenant(userId);
+    if (!tenant) {
+      return {
+        items: [],
+        next_cursor: null,
+      };
+    }
+
+    const limit = this.parseListLimit(query.limit, 20, 100);
+    const cursor = this.parseOptionalIsoCursor(query.cursor);
+
+    const supabase = this.databaseService.getClient();
+    let dbQuery = supabase
+      .from('automation_executions')
+      .select(
+        'id, tenant_id, workflow_name, external_execution_id, status, node_name, error_reason, meta, started_at, finished_at, created_at, updated_at',
+      )
+      .eq('tenant_id', tenant.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (cursor) {
+      dbQuery = dbQuery.lt('created_at', cursor);
+    }
+
+    const { data, error } = await dbQuery;
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to fetch automation executions: ${error.message}`,
+      );
+    }
+
+    const items = (data ?? []).map((row) =>
+      this.mapExecutionRow(row as AutomationExecutionRow),
+    );
+    const nextCursor = items.length === limit ? items[items.length - 1].created_at : null;
+
+    return {
+      items,
+      next_cursor: nextCursor,
+    };
+  }
+
+  async getAutomationFailedItems(
+    userId: string,
+    query: AutomationFailedItemsQueryDto,
+  ) {
+    const tenant = await this.getPrimaryTenant(userId);
+    if (!tenant) {
+      return {
+        items: [],
+        next_cursor: null,
+      };
+    }
+
+    const limit = this.parseListLimit(query.limit, 20, 100);
+    const cursor = this.parseOptionalIsoCursor(query.cursor);
+    const status = (query.status ?? 'pending').trim().toLowerCase();
+
+    if (!['pending', 'resolved', 'ignored', 'all'].includes(status)) {
+      throw new BadRequestException('status must be one of pending|resolved|ignored|all');
+    }
+
+    const supabase = this.databaseService.getClient();
+    let dbQuery = supabase
+      .from('failed_items')
+      .select(
+        'id, tenant_id, workflow_name, node_name, payload, error_reason, retry_count, status, created_at, updated_at, last_retry_at, last_retry_job_id',
+      )
+      .eq('tenant_id', tenant.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (status !== 'all') {
+      dbQuery = dbQuery.eq('status', status);
+    }
+    if (cursor) {
+      dbQuery = dbQuery.lt('created_at', cursor);
+    }
+
+    const { data, error } = await dbQuery;
+    if (error) {
+      throw new InternalServerErrorException(
+        `Failed to fetch failed items: ${error.message}`,
+      );
+    }
+
+    const items = (data ?? []).map((row) => this.mapFailedItemRow(row as FailedItemRow));
+    const nextCursor = items.length === limit ? items[items.length - 1].created_at : null;
+
+    return {
+      items,
+      next_cursor: nextCursor,
+    };
+  }
+
+  async retryAutomationFailedItem(userId: string, failedItemId: string, note?: string) {
+    const tenant = await this.getPrimaryTenant(userId);
+    if (!tenant) {
+      throw new BadRequestException('No tenant found for user');
+    }
+
+    const supabase = this.databaseService.getClient();
+    const { data: failedItem, error: failedItemError } = await supabase
+      .from('failed_items')
+      .select(
+        'id, tenant_id, workflow_name, node_name, payload, error_reason, retry_count, status, created_at, updated_at, last_retry_at, last_retry_job_id',
+      )
+      .eq('id', failedItemId)
+      .eq('tenant_id', tenant.id)
+      .maybeSingle<FailedItemRow>();
+
+    if (failedItemError || !failedItem) {
+      throw new NotFoundException('Failed item not found');
+    }
+
+    if (failedItem.status !== 'pending') {
+      throw new BadRequestException('Only pending failed items can be retried');
+    }
+
+    const retryContext = this.extractRetryContext(failedItem.payload, tenant.id);
+    if (!retryContext) {
+      return {
+        status: 'not_retryable',
+        reason: 'payload.retry_context is missing or invalid',
+      };
+    }
+
+    const { data: activeJob, error: activeJobError } = await supabase
+      .from('automation_retry_jobs')
+      .select('id, status')
+      .eq('failed_item_id', failedItemId)
+      .in('status', ['queued', 'processing'])
+      .limit(1)
+      .maybeSingle<{ id: string; status: RetryJobStatus }>();
+
+    if (activeJobError) {
+      throw new InternalServerErrorException(
+        `Failed to check active retry job: ${activeJobError.message}`,
+      );
+    }
+
+    if (activeJob) {
+      throw new ConflictException(
+        `Retry already queued for this item (job_id=${activeJob.id}, status=${activeJob.status})`,
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+    const { data: retryJob, error: retryJobError } = await supabase
+      .from('automation_retry_jobs')
+      .insert({
+        tenant_id: tenant.id,
+        failed_item_id: failedItem.id,
+        status: 'queued',
+        retry_context: retryContext,
+        attempt_number: (failedItem.retry_count ?? 0) + 1,
+        updated_at: nowIso,
+      })
+      .select(
+        'id, tenant_id, failed_item_id, status, retry_context, attempt_number, claimed_by, error_reason, started_at, finished_at, created_at, updated_at',
+      )
+      .single<RetryJobRow>();
+
+    if (retryJobError || !retryJob) {
+      throw new InternalServerErrorException(
+        `Failed to queue retry job: ${retryJobError?.message ?? 'unknown error'}`,
+      );
+    }
+
+    const { error: failedItemUpdateError } = await supabase
+      .from('failed_items')
+      .update({
+        last_retry_at: nowIso,
+        last_retry_job_id: retryJob.id,
+        updated_at: nowIso,
+      })
+      .eq('id', failedItem.id)
+      .eq('tenant_id', tenant.id);
+
+    if (failedItemUpdateError) {
+      throw new InternalServerErrorException(
+        `Failed to update failed item retry metadata: ${failedItemUpdateError.message}`,
+      );
+    }
+
+    await this.logAuditEvent(tenant.id, 'automation_retry_queued', {
+      failed_item_id: failedItem.id,
+      retry_job_id: retryJob.id,
+      workflow_name: failedItem.workflow_name,
+      note: note?.trim() || null,
+    });
+
+    return {
+      status: 'queued',
+      retry_job_id: retryJob.id,
+      failed_item_id: failedItem.id,
+      queued_at: retryJob.created_at,
     };
   }
 
@@ -1013,6 +1380,91 @@ export class AppClientService {
     }
 
     return expiresAtMs > Date.now();
+  }
+
+  private mapExecutionRow(row: AutomationExecutionRow) {
+    return {
+      id: row.id,
+      workflow_name: row.workflow_name,
+      external_execution_id: row.external_execution_id,
+      status: row.status,
+      node_name: row.node_name,
+      error_reason: row.error_reason,
+      meta: row.meta,
+      started_at: row.started_at,
+      finished_at: row.finished_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+  private mapFailedItemRow(row: FailedItemRow) {
+    const retryContext = this.extractRetryContext(row.payload, row.tenant_id);
+    return {
+      id: row.id,
+      workflow_name: row.workflow_name,
+      node_name: row.node_name,
+      error_reason: row.error_reason,
+      retry_count: row.retry_count,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      last_retry_at: row.last_retry_at,
+      last_retry_job_id: row.last_retry_job_id,
+      payload: row.payload ?? {},
+      retryable: Boolean(retryContext),
+      retry_context: retryContext,
+    };
+  }
+
+  private parseListLimit(raw: string | undefined, fallback: number, max: number): number {
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new BadRequestException('limit must be a positive integer');
+    }
+    return Math.min(parsed, max);
+  }
+
+  private parseOptionalIsoCursor(raw: string | undefined): string | null {
+    if (!raw) {
+      return null;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const ms = new Date(trimmed).getTime();
+    if (Number.isNaN(ms)) {
+      throw new BadRequestException('cursor must be a valid ISO datetime string');
+    }
+    return new Date(ms).toISOString();
+  }
+
+  private extractRetryContext(
+    payload: Record<string, unknown> | null,
+    tenantId: string,
+  ): Record<string, unknown> | null {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const raw = payload.retry_context;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
+
+    const retryContext = raw as Record<string, unknown>;
+    if (retryContext.tenant_id !== tenantId) {
+      return null;
+    }
+    if (typeof retryContext.platform_post_id !== 'string') {
+      return null;
+    }
+
+    return retryContext;
   }
 
   private async logAuditEvent(

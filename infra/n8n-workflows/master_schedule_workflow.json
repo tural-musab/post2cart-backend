@@ -17,7 +17,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
       "position": [
-        240,
+        180,
         300
       ]
     },
@@ -41,8 +41,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        460,
-        300
+        420,
+        220
       ]
     },
     {
@@ -58,8 +58,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 2,
       "position": [
-        680,
-        300
+        660,
+        220
       ]
     },
     {
@@ -72,7 +72,227 @@
       "typeVersion": 1,
       "position": [
         900,
-        300
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/retry-jobs/claim",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "={{ Number($env.AUTOMATION_RETRY_CLAIM_LIMIT || 20) }}"
+            },
+            {
+              "name": "worker",
+              "value": "master_schedule_workflow"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "claim-retry-jobs",
+      "name": "Claim Retry Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        420,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "splitOutItems",
+        "fieldToSplitOut": "items"
+      },
+      "id": "split-retry-items",
+      "name": "Split Retry Jobs",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3.1,
+      "position": [
+        660,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "tenant_id",
+              "value": "={{ $json.tenant_id }}",
+              "type": "string"
+            },
+            {
+              "name": "retry_job_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "name": "social_account_id",
+              "value": "={{ $json.retry_context.social_account_id || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "sync_state_id",
+              "value": "={{ $json.retry_context.sync_state_id || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "platform_account_id",
+              "value": "={{ $json.retry_context.platform_account_id || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "last_cursor_id",
+              "value": "={{ $json.retry_context.platform_post_id || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "decrypted_access_token",
+              "value": "={{ $json.retry_context.decrypted_access_token || '' }}",
+              "type": "string"
+            },
+            {
+              "name": "retry_context",
+              "value": "={{ $json.retry_context }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-retry-input",
+      "name": "Prepare Retry Trigger",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        900,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "sub-workflow-uuid-here"
+      },
+      "id": "execute-retry-sub-workflow",
+      "name": "Call Retry Sub-Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        460
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-retry-sub-failed",
+      "name": "IF Retry Sub Failed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/retry-jobs/complete",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "job_id",
+              "value": "={{ $('Prepare Retry Trigger').item.json.retry_job_id }}"
+            },
+            {
+              "name": "success",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete-retry-success",
+      "name": "Complete Retry Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1620,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://post2cart-backend:3100/n8n/retry-jobs/complete",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_INTERNAL_TOKEN}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "job_id",
+              "value": "={{ $('Prepare Retry Trigger').item.json.retry_job_id }}"
+            },
+            {
+              "name": "success",
+              "value": false
+            },
+            {
+              "name": "error_reason",
+              "value": "={{ $json.error?.message || 'retry_execution_failed' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "complete-retry-failed",
+      "name": "Complete Retry Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1620,
+        520
       ]
     }
   ],
@@ -82,6 +302,13 @@
         [
           {
             "node": "Fetch Active Tenants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claim Retry Jobs",
             "type": "main",
             "index": 0
           }
@@ -115,6 +342,68 @@
         [
           {
             "node": "Split In Batches (Rate Limit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Retry Jobs": {
+      "main": [
+        [
+          {
+            "node": "Split Retry Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Retry Jobs": {
+      "main": [
+        [
+          {
+            "node": "Prepare Retry Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Retry Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call Retry Sub-Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Retry Sub-Workflow": {
+      "main": [
+        [
+          {
+            "node": "IF Retry Sub Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Retry Sub Failed": {
+      "main": [
+        [
+          {
+            "node": "Complete Retry Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Complete Retry Success",
             "type": "main",
             "index": 0
           }

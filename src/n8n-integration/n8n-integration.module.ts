@@ -8,6 +8,8 @@ import { N8nWebhookController } from './n8n-webhook.controller';
 import { N8nWebhookService } from './n8n-webhook.service';
 import { SocialFeedbackService } from './social-feedback.service';
 import { SocialFeedbackController } from './social-feedback.controller';
+import { AutomationInternalController } from './automation-internal.controller';
+import { AutomationInternalService } from './automation-internal.service';
 
 @Module({
   imports: [DatabaseModule, CryptoModule],
@@ -15,13 +17,20 @@ import { SocialFeedbackController } from './social-feedback.controller';
     SyncStateController,
     N8nWebhookController,
     SocialFeedbackController,
+    AutomationInternalController,
   ],
   providers: [
     SyncStateService,
     N8nWebhookService,
     SocialFeedbackService,
+    AutomationInternalService,
     InternalServiceTokenGuard,
   ],
-  exports: [SyncStateService, N8nWebhookService, SocialFeedbackService],
+  exports: [
+    SyncStateService,
+    N8nWebhookService,
+    SocialFeedbackService,
+    AutomationInternalService,
+  ],
 })
 export class N8nIntegrationModule {}
