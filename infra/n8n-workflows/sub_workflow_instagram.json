@@ -119,7 +119,7 @@
           "assignments": [
             {
               "name": "id",
-              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.platform_post_id || $('Execute Workflow Trigger').item.json.retry_context?.content?.id || '' }}",
+              "value": "={{ $('Execute Workflow Trigger').item.json.retry_context?.platform_post_id || $('Execute Workflow Trigger').item.json.retry_context?.content?.id || $('Execute Workflow Trigger').item.json.last_cursor_id || '' }}",
               "type": "string"
             },
             {
@@ -195,7 +195,7 @@
             },
             {
               "name": "platform_post_id",
-              "value": "={{ $json.id }}"
+              "value": "={{ $json.id || $('Execute Workflow Trigger').item.json.retry_context?.platform_post_id || $('Execute Workflow Trigger').item.json.last_cursor_id || '' }}"
             },
             {
               "name": "content",
@@ -526,7 +526,7 @@
             },
             {
               "name": "last_cursor_id",
-              "value": "={{ $('Parse AI JSON').first().json.next_cursor || $('Parse AI JSON').first().json.platform_post_id }}"
+              "value": "={{ $json.next_cursor || $json.platform_post_id || $('POST /webhooks/social-posts').item.json.platform_post_id }}"
             }
           ]
         },
@@ -943,10 +943,16 @@
     },
     "IF social post inserted": {
       "main": [
-        [],
         [
           {
             "node": "IF media_type == VIDEO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "POST /sync-state/update-cursor",
             "type": "main",
             "index": 0
           }
